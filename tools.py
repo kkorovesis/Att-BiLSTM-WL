@@ -4,17 +4,17 @@ import torch
 import math
 import sys
 import csv
+import numpy as np
 import pandas as pd
-import numpy
-
 from matplotlib import pyplot as plt
 from torch.autograd import Variable
 from sklearn.utils import compute_class_weight
-
+from torch.utils.data.sampler import SubsetRandomSampler
 
 #############################################
 # Utils
 #############################################
+
 
 def sort_batch(lengths, others):
     """
@@ -59,9 +59,9 @@ def get_class_weights(y):
     :return: dictionary with the weight for each class
     """
 
-    weights = compute_class_weight('balanced', numpy.unique(y), y)
+    weights = compute_class_weight('balanced', np.unique(y), y)
 
-    d = {c: w for c, w in zip(numpy.unique(y), weights)}
+    d = {c: w for c, w in zip(np.unique(y), weights)}
 
     return d
 
@@ -78,7 +78,34 @@ def get_class_labels(y):
     :param y: list of labels, ex. ['positive', 'negative', 'positive', 'neutral', 'positive', ...]
     :return: sorted unique class labels
     """
-    return numpy.unique(y)
+    return np.unique(y)
+
+
+def split_train_set(train_set, contiguous, split_rate=0.1):
+
+    """
+    Get the class labels
+    :param train_set: list training indexes
+    :param contiguous: contiguous or non-contiguous split
+    :param split_rate: split rate (default: 0.1)
+    :return: train and validation samplers for torch.utils.data.DataLoader
+    """
+
+    train_len = len(train_set.data)
+    indices = list(range(train_len))
+    split = int(train_len * split_rate)
+
+    if contiguous:
+        train_idx, validation_idx = indices[split:], indices[:split]
+    else:
+        validation_idx = np.random.choice(indices, size=split, replace=False)
+        train_idx = list(set(indices) - set(validation_idx))
+
+    train_sampler = SubsetRandomSampler(train_idx)
+    validation_sampler = SubsetRandomSampler(validation_idx)
+
+    return train_sampler, validation_sampler
+
 
 
 def get_labels_to_categories_map(y):
@@ -89,6 +116,11 @@ def get_labels_to_categories_map(y):
     """
     labels = get_class_labels(y)
     return {l: i for i, l in enumerate(labels)}
+
+
+def save_model(model, file):
+
+    torch.save(model, file)
 
 
 def df_to_csv(df,file):
@@ -133,6 +165,7 @@ def load_cache_word_vectors(file):
 # Ploters
 #############################################
 
+
 def loss_curve(df,EPOCHS):
     plt.figure()
     plt.plot(range(1, EPOCHS + 1), df["Train_Loss"], 'b', label='training loss')
@@ -142,6 +175,7 @@ def loss_curve(df,EPOCHS):
     plt.title('Train/Val Loss')
     plt.legend(loc='best')
     plt.show()
+
 
 def f1_curve(df,EPOCHS):
     plt.figure()
@@ -154,6 +188,7 @@ def f1_curve(df,EPOCHS):
     plt.grid()
     plt.show()
 
+
 def acc_curve(df,EPOCHS):
     plt.figure()
     plt.plot(range(1, EPOCHS + 1), df["Train_Acc"], 'b', label='training acc')
@@ -165,10 +200,11 @@ def acc_curve(df,EPOCHS):
     plt.grid()
     plt.show()
 
+
 def mae_curve(df, EPOCHS):
     plt.figure()
-    plt.plot(range(1, EPOCHS + 1), df["Macro_MAE"], 'b', label='macro mean ab error')
-    plt.plot(range(1, EPOCHS + 1), df["Micro_MAE"], 'r', label='micro mean ab error')
+    plt.plot(range(1, EPOCHS + 1), df["Macro_MAE"], 'r', label='macro mean ab error')
+    plt.plot(range(1, EPOCHS + 1), df["Micro_MAE"], 'b', label='micro mean ab error')
     plt.ylabel('mae')
     plt.xlabel('epoch')
     plt.title('Mean Absolute Error')
@@ -179,6 +215,7 @@ def mae_curve(df, EPOCHS):
 #############################################
 # Model Evaluator
 #############################################
+
 
 def eval_dataset(dataloader, model, loss_function):
     # switch to eval mode -> disable regularization layers, such as Dropout

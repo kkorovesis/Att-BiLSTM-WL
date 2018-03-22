@@ -4,10 +4,8 @@ from ekphrasis.dicts.emoticons import emoticons
 from sklearn import preprocessing
 from torch.utils.data import Dataset
 from collections import Counter
-
 from load_data import load_data_from_dir
 from nlp import vectorize
-
 
 
 class SentimentDataset(Dataset):
